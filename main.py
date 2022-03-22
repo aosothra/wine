@@ -2,6 +2,7 @@ from datetime import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from collections import defaultdict
 
+import configargparse
 import pandas
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -16,36 +17,55 @@ def get_correct_plural_year(years):
         return f'{years} лет'
 
 
-env = Environment(
-    loader=FileSystemLoader('.'),
-    autoescape=select_autoescape(['html', 'xml'])
-)
+def get_arranged_products(excel_filepath):
+    products = (pandas.read_excel(
+                        excel_filepath,
+                        na_values=None,
+                        keep_default_na=False).to_dict('records'))
 
-template = env.get_template('template.html')
+    arranged_products = defaultdict(list)
 
-wine_data_excel = pandas.read_excel('wine3.xlsx', sheet_name='Лист1', na_values=None, keep_default_na=False)
-wines = wine_data_excel.to_dict('records')
+    for product in products:
+        arranged_products[product.pop('Категория')].append(product)
 
-wines_categorized = defaultdict(list)
-for wine in wines:
-    new_wine = dict()
-    for key in wine_data_excel.columns.ravel():
-        if key == 'Категория':
-            continue
-        new_wine[key] = wine[key]
-    wines_categorized[wine['Категория']].append(new_wine)
+    return arranged_products
 
-founding_year = 1900
-years_since = datetime.now().year - founding_year
 
-rendered_page = template.render(
-    categories=wines_categorized.keys(),
-    wines_categorized=wines_categorized,
-    years_since=get_correct_plural_year(years_since)
-)
+def main():
+    parser = configargparse.ArgParser(default_config_files=['config.ini'])
 
-with open('index.html', 'w', encoding="utf8") as file:
-    file.write(rendered_page)
+    parser.set_defaults(http_ip='0.0.0.0', http_port=8000)
+    parser.add_argument('--http_ip', help='IP address of the server')
+    parser.add_argument('--http_port', type=int, help='Port of the server')
+    parser.add_argument('--index_template', required=True, help='HTML template file to render')
+    parser.add_argument('--products_excel', required=True, help='Excel spreadsheet with product listing')
+    parser.add_argument('-c', '--config', is_config_file=True, help='Custom config file')
 
-server = HTTPServer(('0.0.0.0', 8000), SimpleHTTPRequestHandler)
-server.serve_forever()
+    args = parser.parse_args()
+
+    products = get_arranged_products(args.products_excel)
+
+    founding_year = 1920
+    winery_age = datetime.now().year - founding_year
+
+    env = Environment(
+        loader=FileSystemLoader('.'),
+        autoescape=select_autoescape(['html', 'xml'])
+    )
+
+    template = env.get_template(args.index_template)
+
+    rendered_page = template.render(
+        products=products,
+        years_since=get_correct_plural_year(winery_age)
+    )
+
+    with open('index.html', 'w', encoding="utf8") as file:
+        file.write(rendered_page)
+
+    server = HTTPServer((args.http_ip, args.http_port), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
