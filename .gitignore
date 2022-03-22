@@ -9,3 +9,4 @@ pyvenv.cfg
 
 index.html
 *.xlsx
+*.ini
