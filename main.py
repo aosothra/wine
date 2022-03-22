@@ -6,8 +6,8 @@ import pandas
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-def get_correct_plural(years):
-    trailing_digit = years % 10 if years >= 10 else years
+def get_correct_plural_year(years):
+    trailing_digit = years % 10 if years >= 20 else years
     if trailing_digit == 1:
         return f'{years} год'
     elif 1 < trailing_digit < 5:
@@ -41,7 +41,7 @@ years_since = datetime.now().year - founding_year
 rendered_page = template.render(
     categories=wines_categorized.keys(),
     wines_categorized=wines_categorized,
-    years_since=get_correct_plural(years_since)
+    years_since=get_correct_plural_year(years_since)
 )
 
 with open('index.html', 'w', encoding="utf8") as file:
